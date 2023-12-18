@@ -20,7 +20,7 @@
 #'
 #' @return a list of the following components:
 #' \itemize{
-#'  \item{\code{PMLE} and \code{MLE}: }{both are link objects containing the following components:}
+#'  \item{\code{PMLE}: }{a list containing the following components:}
 #'    \itemize{
 #'      \item{\code{gamma}: }{a data frame containing the estimate and robust standard error (SE) of the copula parameter or regression coefficients for the copula parameter.}
 #'      \item{\code{gamma.cov}: }{a matrix containing the variance or variance-covariance matrix of the copula parameter or regression coefficients for the copula parameter.}
@@ -31,6 +31,7 @@
 #'      \item{\code{dLambdaD}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the death time.}
 #'      \item{\code{thetaD.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the death time.}
 #'      }
+#'  \item{\code{naive}}{a list containing naive estimates of \code{betaT}, \code{dLambdaT}, and \code{gamma} by estimating the marginal distribution of the non-terminal event time without the information on the between-event dependence.}
 #'  \item{\code{call}: }{a list containing the specified values of input arguments \code{time}, \code{death}, \code{status_time}, \code{status_death}, \code{T.fmla}, \code{D.fmla}, \code{copula.family}, and the following two components:}
 #'    \itemize{
 #'      \item{\code{copula.link}: }{a list containing three R functions: "h.fun" (the link function used for the copula parameter), "dot.h.fun" (the first-order derivative of "h.fun"), and "ddot.h.fun" (the second-order derivative of "h.fun").}
@@ -163,9 +164,9 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   # Initial value for the marginal of relapse for stage II of PMLE ----
   fitT = fitSPT(dat, time = "time", status = "status_time",
                 formula = T.fmla, Gfun = "PH")
-  betaT = as.vector(fitT$beta$est)
-  dLambdaT  = as.vector(fitT$dLambda$est)
-  thetaT.naive = c(betaT, dLambdaT)
+  betaT.naive = as.vector(fitT$beta$est)
+  dLambdaT.naive  = as.vector(fitT$dLambda$est)
+  thetaT.naive = c(betaT.naive, dLambdaT.naive)
 
   # Naive estimate
   objfun<- function(x){
@@ -279,77 +280,10 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
     betaD = betaD.summary, dLambdaD = dLambdaD.summary, thetaD.cov = thetaD.cov
   )
 
-  # MLE ----
-  MLE.ini = c(gamma.naive, thetaT.naive, thetaD.est)
-  objfun<- function(x){
-    f = lln.fun(theta = x, thetaT = NULL, thetaD = NULL,
-                Xi, Ci, deltaT, deltaD,
-                Zmat.T, Zmat.D, copula.index, Gfun,
-                copula.link, Wmat, control)
-    g = dlln.fun(theta = x, thetaT = NULL, thetaD = NULL,
-                 Xi, Ci, deltaT, deltaD,
-                 Zmat.T, Zmat.D, copula.index, Gfun,
-                 copula.link, Wmat, control)
-    B = ddlln.fun(theta = x, thetaT = NULL, thetaD = NULL,
-                  Xi, Ci, deltaT, deltaD,
-                  Zmat.T, Zmat.D, copula.index, Gfun,
-                  copula.link, Wmat, control)
-    list(value = f, gradient = g, hessian = B)
-  }
 
-  est.res <- trust(objfun, MLE.ini, 5, 100, iterlim = 300,
-                   minimize= FALSE, blather = T)
-  if (!est.res$converged) stop("Error: MLE did not converge.")
-  theta.est = est.res$argument
-  Imat = - ddlln.fun(theta = theta.est, thetaT = NULL, thetaD = NULL,
-                     Xi, Ci, deltaT, deltaD,
-                     Zmat.T, Zmat.D, copula.index, Gfun,
-                     copula.link, Wmat, control)
-  Psi =  dll.fun(theta = theta.est, thetaT = NULL, thetaD = NULL,
-                 Xi, Ci, deltaT, deltaD,
-                 Zmat.T, Zmat.D, copula.index, Gfun,
-                 copula.link, Wmat, control)
-  Vmat = crossprod(Psi, Psi) / N
-  theta.cov = solve(Imat) %*% Vmat %*% solve(Imat) / N
-  theta.cov.model = solve(Imat) / N
-
-  gamma.summary = data.frame(
-    para = colnames(Wmat),
-    est = theta.est[1 : n.gamma],
-    se = sqrt(diag(theta.cov))[1 : n.gamma])
-
-  betaT.summary = data.frame(
-    para = colnames(Zmat.T),
-    est = theta.est[n.gamma + c(1 : n.bT)],
-    se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)])
-
-  dLambdaT.summary = data.frame(
-    time = tk,
-    est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
-    se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)])
-
-  betaD.summary = data.frame(
-    para = colnames(Zmat.D),
-    est = thetaD.est[c(1 : n.bD)],
-    se = sqrt(diag(thetaD.cov))[c(1 : n.bD)])
-
-  dLambdaD.summary = data.frame(
-    time = dk,
-    est = thetaD.est[n.bD + c(1 : n.dk)],
-    se = sqrt(diag(thetaD.cov))[n.bD + c(1 : n.dk)])
-
-  gamma.cov = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F]
-  thetaT.cov = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
-                         n.gamma + c(1 : (n.bT + n.tk))]
-  thetaD.cov = theta.cov[n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk)),
-                     n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk))]
-  out.MLE = list(
-    gamma = gamma.summary, gamma.cov = gamma.cov,
-    betaT = betaT.summary, dLambdaT = dLambdaT.summary, thetaT.cov = thetaT.cov,
-    betaD = betaD.summary, dLambdaD = dLambdaD.summary, thetaD.cov = thetaD.cov
-  )
-
-  list(PMLE = out.PMLE, MLE = out.MLE, naive = para.naive,
+  list(PMLE = out.PMLE,
+       naive = list(betaT = betaT.naive, dLambdaT = dLambdaT.naive,
+                    gamma = gamma.naive),
        call = list(time = time, death = death,
                    status_time = status_time, status_death = status_death,
                    T.fmla = T.fmla, D.fmla = D.fmla,

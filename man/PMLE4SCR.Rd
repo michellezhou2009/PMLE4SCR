@@ -44,7 +44,7 @@ PMLE4SCR(
 \value{
 a list of the following components:
 \itemize{
- \item{\code{PMLE} and \code{MLE}: }{both are link objects containing the following components:}
+ \item{\code{PMLE}: }{a list containing the following components:}
    \itemize{
      \item{\code{gamma}: }{a data frame containing the estimate and robust standard error (SE) of the copula parameter or regression coefficients for the copula parameter.}
      \item{\code{gamma.cov}: }{a matrix containing the variance or variance-covariance matrix of the copula parameter or regression coefficients for the copula parameter.}
@@ -55,6 +55,7 @@ a list of the following components:
      \item{\code{dLambdaD}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the death time.}
      \item{\code{thetaD.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the death time.}
      }
+ \item{\code{naive}}{a list containing naive estimates of \code{betaT}, \code{dLambdaT}, and \code{gamma} by estimating the marginal distribution of the non-terminal event time without the information on the between-event dependence.}
  \item{\code{call}: }{a list containing the specified values of input arguments \code{time}, \code{death}, \code{status_time}, \code{status_death}, \code{T.fmla}, \code{D.fmla}, \code{copula.family}, and the following two components:}
    \itemize{
      \item{\code{copula.link}: }{a list containing three R functions: "h.fun" (the link function used for the copula parameter), "dot.h.fun" (the first-order derivative of "h.fun"), and "ddot.h.fun" (the second-order derivative of "h.fun").}
