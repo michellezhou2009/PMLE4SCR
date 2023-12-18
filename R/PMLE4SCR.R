@@ -1,3 +1,57 @@
+#' Two-stage pseudo maximum likelihood estimation (PMLE) for the copula-based analysis of semi-competing risks (SCR) data
+#'
+#' @description
+#'
+#' @param data a data frame containing variables names in the formulas: \code{T.fmla}, \code{D.fmla}, and \code{formula} in \code{copula.control}.
+#' @param time a character string specifying the variable name in the \code{data} for the time to a non-terminal event.
+#' @param death a character string specifying the variable name in the \code{data} for the time to death.
+#' @param status_time a character string specifying the variable name in the \code{data} for the censoring indicator of the non-terminal event: \code{1} indicates the non-terminal time is observed, and \code{0} indicates censored.
+#' @param status_death a character string specifying the variable name in the \code{data} for the censoring indicator of death: \code{1} indicates the death time is observed, and \code{0} indicates censored.
+#' @param T.fmla an object of class \code{\link[stats]{formula}}: a symbolic description of the regression model to be fitted for the marginal distribution of the non-terminal event time.
+#' @param D.fmla an object of class \code{\link[stats]{formula}}: a symbolic description of the regression model to be fitted for the marginal distribution of the death time.
+#' @param Gfun a list of two components \code{T} and \code{D}, both character strings specifying the link function in the SPT model for the non-terminal event and death, respectively: "PH" (proportional hazards as the default value) or "PO" (proportional odds).
+#' @param copula.family a character string: "Clayton", "Gumbel", or "Frank", specifying the copula family to be used for the dependence between the bivariate event times.
+#' @param copula.control a list of two components: \code{link} (a character string: "identity", "log", or "log-1", specifying the link function for the regression model of the copula parameter; if \code{link = NULL} (default), the link function will be the default function for the specified copula family: "log" for Clayton, "identity" for Frank, and "log-1" for Gumbel), and \code{formula} (an object of class \code{\link[stats]{formula}}: a symbolic description of the regression model to be fitted for the copula parameter under the specified link function; if \code{formula = ~ 1} (default), the copula parameter is a constant)
+#' @param initial a numerical value or a vector of numerical values for the initial values of the copula parameter or the regression coefficients for the copula parameter.
+#'
+#' @import trust rlang dplyr VineCopula
+#'
+#' @export
+#'
+#' @return a list of the following components:
+#' \itemize{
+#'  \item{\code{PMLE} and \code{MLE}: }{both are link objects containing the following components:}
+#'    \itemize{
+#'      \item{\code{gamma}: }{a data frame containing the estimate and robust standard error (SE) of the copula parameter or regression coefficients for the copula parameter.}
+#'      \item{\code{gamma.cov}: }{a matrix containing the variance or variance-covariance matrix of the copula parameter or regression coefficients for the copula parameter.}
+#'      \item{\code{betaT}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the non-terminal event time.}
+#'      \item{\code{dLambdaT}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the non-terminal event time.}
+#'      \item{\code{thetaT.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the non-terminal event time.}
+#'      \item{\code{betaD}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the death time.}
+#'      \item{\code{dLambdaD}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the death time.}
+#'      \item{\code{thetaD.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the death time.}
+#'      }
+#'  \item{\code{call}: }{a list containing the specified values of input arguments \code{time}, \code{death}, \code{status_time}, \code{status_death}, \code{T.fmla}, \code{D.fmla}, \code{copula.family}, and the following two components:}
+#'    \itemize{
+#'      \item{\code{copula.link}: }{a list containing three R functions: "h.fun" (the link function used for the copula parameter), "dot.h.fun" (the first-order derivative of "h.fun"), and "ddot.h.fun" (the second-order derivative of "h.fun").}
+#'      \item{\code{copula.fmla}: }{the specified value of \code{fomula} of the input argument \code{copula.control}.}
+#'    }
+#'  \item{\code{Par2Tau}: }{a list containing two R functions: "tau.alpha" (transformation from the copula parameter to Kendall's tau), and "Dtau.alpha" (the first-order derivative of "tau.alpha" function)}
+#' }
+#' @examples
+#' \code{data(BMT, package = "SemiCompRisks")}
+#' \code{data = BMT %>%
+#'         mutate(g = factor(g, levels = c(2, 3, 1),
+#'                     labels = c("AML-low", "AML-high", "ALL")))}
+#' \code{myfit = PMLE4SCR(data, time = "T2", death = "T1",
+#'                         status_time = "delta2", status_death = "delta1",
+#'                         T.fmla = ~ g, D.fmla = ~ g,
+#'                         copula.family = "Clayton",
+#'                         copula.control = list(link = "identity", formula = ~ g),
+#'                         initial = c(2, 0, 0))}
+#' \code{myfit$PMLE$gamma}
+#' \code{myfit$PMLE$betaT}
+#'
 PMLE4SCR = function(data, time, death, status_time, status_death,
                     T.fmla = ~ 1, D.fmla = ~ 1,
                     Gfun = list(T = "PH", D = "PH"),
@@ -189,43 +243,41 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   Vmat = crossprod(Psi.theta, Psi.theta) / N
   theta.cov = solve(Imat) %*% Vmat %*% solve(Imat) / N
 
+  gamma.summary = data.frame(
+    para = colnames(Wmat),
+    est = theta.est[1 : n.gamma],
+    se = sqrt(diag(theta.cov))[1 : n.gamma])
 
-  para.est = data.frame(type = "copula", para = colnames(Wmat), time = NA,
-                        est = theta.est[1 : n.gamma],
-                        se = sqrt(diag(theta.cov))[1 : n.gamma])
+  betaT.summary = data.frame(
+    para = colnames(Zmat.T),
+    est = theta.est[n.gamma + c(1 : n.bT)],
+    se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)])
 
-  para.est = rbind(
-    para.est,
-    data.frame(type = "betaT", para = colnames(Zmat.T), time = NA,
-               est = theta.est[n.gamma + c(1 : n.bT)],
-               se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(type = "dLambdaT", para = "dLambdaT", time = tk,
-               est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
-               se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(type = "betaD", para = colnames(Zmat.D), time = NA,
-               est = thetaD.est[c(1 : n.bD)],
-               se = sqrt(diag(thetaD.cov))[c(1 : n.bD)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(type = "dLambdaD", para = "dLambdaD", time = dk,
-               est = thetaD.est[n.bD + c(1 : n.dk)],
-               se = sqrt(diag(thetaD.cov))[n.bD + c(1 : n.dk)])
-  )
+  dLambdaT.summary = data.frame(
+    time = tk,
+    est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
+    se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)])
 
-  theta.cov = list(
-    copula = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F],
-    thetaT = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
-                       n.gamma + c(1 : (n.bT + n.tk))],
-    thetaD = thetaD.cov)
+  betaD.summary = data.frame(
+    para = colnames(Zmat.D),
+    est = thetaD.est[c(1 : n.bD)],
+    se = sqrt(diag(thetaD.cov))[c(1 : n.bD)])
 
-  out.PMLE = list(est = para.est, cov = theta.cov)
+  dLambdaD.summary = data.frame(
+    time = dk,
+    est = thetaD.est[n.bD + c(1 : n.dk)],
+    se = sqrt(diag(thetaD.cov))[n.bD + c(1 : n.dk)])
+
+
+  gamma.cov = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F]
+  thetaT.cov = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
+                         n.gamma + c(1 : (n.bT + n.tk))]
+
+  out.PMLE = list(
+    gamma = gamma.summary, gamma.cov = gamma.cov,
+    betaT = betaT.summary, dLambdaT = dLambdaT.summary, thetaT.cov = thetaT.cov,
+    betaD = betaD.summary, dLambdaD = dLambdaD.summary, thetaD.cov = thetaD.cov
+  )
 
   # MLE ----
   MLE.ini = c(gamma.naive, thetaT.naive, thetaD.est)
@@ -246,7 +298,7 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   }
 
   est.res <- trust(objfun, MLE.ini, 5, 100, iterlim = 300,
-    minimize= FALSE, blather = T)
+                   minimize= FALSE, blather = T)
   if (!est.res$converged) stop("Error: MLE did not converge.")
   theta.est = est.res$argument
   Imat = - ddlln.fun(theta = theta.est, thetaT = NULL, thetaD = NULL,
@@ -261,56 +313,47 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   theta.cov = solve(Imat) %*% Vmat %*% solve(Imat) / N
   theta.cov.model = solve(Imat) / N
 
-  para.est = data.frame(
-    type = "copula", para = colnames(Wmat), time = NA,
+  gamma.summary = data.frame(
+    para = colnames(Wmat),
     est = theta.est[1 : n.gamma],
-    se = sqrt(diag(theta.cov))[1 : n.gamma],
-    se.model = sqrt(diag(theta.cov.model))[1 : n.gamma])
+    se = sqrt(diag(theta.cov))[1 : n.gamma])
 
-  para.est = rbind(
-    para.est,
-    data.frame(
-      type = "betaT", para = colnames(Zmat.T), time = NA,
-      est = theta.est[n.gamma + c(1 : n.bT)],
-      se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)],
-      se.model = sqrt(diag(theta.cov.model))[n.gamma + c(1 : n.bT)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(
-      type = "dLambdaT", para = "dLambdaT", time = tk,
-      est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
-      se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)],
-      se.model = sqrt(diag(theta.cov.model))[n.gamma + n.bT + c(1 : n.tk)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(
-      type = "betaD", para = colnames(Zmat.D), time = NA,
-      est = theta.est[n.gamma + n.bT + n.tk + c(1 : n.bD)],
-      se = sqrt(diag(theta.cov))[n.gamma + n.bT + n.tk + c(1 : n.bD)],
-      se.model =
-        sqrt(diag(theta.cov.model))[n.gamma + n.bT + n.tk + c(1 : n.bD)])
-  )
-  para.est = rbind(
-    para.est,
-    data.frame(
-      type = "dLambdaD", para = "dLambdaD", time = dk,
-      est = theta.est[n.gamma + n.bT + n.tk + n.bD + c(1 : n.dk)],
-      se = sqrt(diag(theta.cov))[n.gamma + n.bT + n.tk + n.bD + c(1 : n.dk)],
-      se.model =
-        sqrt(diag(theta.cov.model))[n.gamma + n.bT + n.tk + n.bD + c(1 : n.dk)])
-  )
-  theta.cov = list(
-    copula = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F],
-    thetaT = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
-                       n.gamma + c(1 : (n.bT + n.tk))],
-    thetaD = theta.cov[n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk)),
-                       n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk))])
+  betaT.summary = data.frame(
+    para = colnames(Zmat.T),
+    est = theta.est[n.gamma + c(1 : n.bT)],
+    se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)])
 
-  out.MLE = list(est = para.est, cov = theta.cov)
+  dLambdaT.summary = data.frame(
+    time = tk,
+    est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
+    se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)])
+
+  betaD.summary = data.frame(
+    para = colnames(Zmat.D),
+    est = thetaD.est[c(1 : n.bD)],
+    se = sqrt(diag(thetaD.cov))[c(1 : n.bD)])
+
+  dLambdaD.summary = data.frame(
+    time = dk,
+    est = thetaD.est[n.bD + c(1 : n.dk)],
+    se = sqrt(diag(thetaD.cov))[n.bD + c(1 : n.dk)])
+
+  gamma.cov = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F]
+  thetaT.cov = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
+                         n.gamma + c(1 : (n.bT + n.tk))]
+  thetaD.cov = theta.cov[n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk)),
+                     n.gamma + n.bT + n.tk + c(1 : (n.bD + n.dk))]
+  out.MLE = list(
+    gamma = gamma.summary, gamma.cov = gamma.cov,
+    betaT = betaT.summary, dLambdaT = dLambdaT.summary, thetaT.cov = thetaT.cov,
+    betaD = betaD.summary, dLambdaD = dLambdaD.summary, thetaD.cov = thetaD.cov
+  )
 
   list(PMLE = out.PMLE, MLE = out.MLE, naive = para.naive,
-       copula.family = copula.family, copula.link = copula.link,
-       Tau2Par = list(tau.alpha = tau.alpha, Dtau.alpha = Dtau.alpha))
+       call = list(time = time, death = death,
+                   status_time = status_time, status_death = status_death,
+                   T.fmla = T.fmla, D.fmla = D.fmla,
+                   copula.family = copula.family, copula.link = copula.link,
+                   copula.fmla = copula.fmla),
+       Par2Tau = list(tau.alpha = tau.alpha, Dtau.alpha = Dtau.alpha))
 }
