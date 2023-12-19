@@ -44,17 +44,14 @@ PMLE4SCR(
 \value{
 a list of the following components:
 \itemize{
- \item{\code{PMLE}: }{a list containing the following components:}
-   \itemize{
-     \item{\code{gamma}: }{a data frame containing the estimate and robust standard error (SE) of the copula parameter or regression coefficients for the copula parameter.}
-     \item{\code{gamma.cov}: }{a matrix containing the variance or variance-covariance matrix of the copula parameter or regression coefficients for the copula parameter.}
-     \item{\code{betaT}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the non-terminal event time.}
-     \item{\code{dLambdaT}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the non-terminal event time.}
-     \item{\code{thetaT.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the non-terminal event time.}
-     \item{\code{betaD}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the death time.}
-     \item{\code{dLambdaD}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the death time.}
-     \item{\code{thetaD.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the death time.}
-     }
+  \item{\code{gamma}: }{a data frame containing the estimate and robust standard error (SE) of the copula parameter or regression coefficients for the copula parameter.}
+ \item{\code{gamma.cov}: }{a matrix containing the variance or variance-covariance matrix of the copula parameter or regression coefficients for the copula parameter.}
+ \item{\code{betaT}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the non-terminal event time.}
+ \item{\code{dLambdaT}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the non-terminal event time.}
+ \item{\code{thetaT.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the non-terminal event time.}
+ \item{\code{betaD}: }{a data frame containing the estimate and robust SE of the regression coefficients for the marginal distribution of the death time.}
+ \item{\code{dLambdaD}: }{a data frame containing the estimate and robust SE of the jump size of the baseline function for the marginal distribution of the death time.}
+ \item{\code{thetaD.cov}: }{a matrix containing the variance-covariance matrix of the parameters for the marginal distribution of the death time.}
  \item{\code{naive}}{a list containing naive estimates of \code{betaT}, \code{dLambdaT}, and \code{gamma} by estimating the marginal distribution of the non-terminal event time without the information on the between-event dependence.}
  \item{\code{call}: }{a list containing the specified values of input arguments \code{time}, \code{death}, \code{status_time}, \code{status_death}, \code{T.fmla}, \code{D.fmla}, \code{copula.family}, and the following two components:}
    \itemize{
@@ -78,7 +75,7 @@ Two-stage pseudo maximum likelihood estimation (PMLE) for the copula-based analy
                         copula.family = "Clayton",
                         copula.control = list(link = "identity", formula = ~ g),
                         initial = c(2, 0, 0))}
-\code{myfit$PMLE$gamma}
-\code{myfit$PMLE$betaT}
+\code{myfit$gamma}
+\code{myfit$betaT}
 
 }
