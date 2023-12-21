@@ -1,4 +1,4 @@
-#' Two-stage pseudo maximum likelihood estimation (PMLE) for the copula-based analysis of semi-competing risks (SCR) data
+#' One-stage maximum likelihood estimation (MLE) for the copula-based analysis of semi-competing risks (SCR) data
 #'
 #' @description
 #'
@@ -50,13 +50,13 @@
 #' \code{myfit$gamma}
 #' \code{myfit$betaT}
 #'
-PMLE4SCR = function(data, time, death, status_time, status_death,
+MLE4SCR = function(data, time, death, status_time, status_death,
                     T.fmla = ~ 1, D.fmla = ~ 1,
                     Gfun = list(T = "PH", D = "PH"),
                     copula.family,
                     copula.control = list(link = NULL, formula = ~ 1),
                     initial){
-
+  
   if (!rlang::is_formula(T.fmla))
     stop("Argument \"T.fmla\" needs to be a formula.")
   if (!rlang::is_formula(D.fmla))
@@ -64,7 +64,7 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   link.fun = copula.control$link; copula.fmla = copula.control$formula
   if (!rlang::is_formula(copula.fmla))
     stop("Argument \"formula\" of \"copula.control\" needs to be a formula.")
-
+  
   allvars = list(time, death, status_time, status_death)
   allnm = c("time", "death", "status_time", "status_death")
   tmp.index = sapply(allvars, function(x) is.character(x))
@@ -91,7 +91,7 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   Wmat = model.matrix(copula.fmla, dat); n.gamma = ncol(Wmat)
   tk = sort(unique(Xi[deltaT == 1])); n.tk = length(tk)
   dk = sort(unique(Ci[deltaD == 1])); n.dk = length(dk)
-
+  
   switch(copula.family,
          "Clayton" = {
            copula.index = 3; copula.lwr = 0; copula.upr = 28
@@ -146,8 +146,8 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
          }
   )
   control = list(copula.lwr = copula.lwr, copula.upr = copula.upr)
-
-  # Stage I of PMLE: estimate the marginal for death ----
+  
+  # Initial value for time to death ----
   fitD = fitSPT(dat, time = "death", status = "status_death",
                 formula = D.fmla, Gfun = "PH")
   betaD = as.vector(fitD$beta$est)
@@ -157,15 +157,15 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   thetaD.est = c(betaD, dLambdaD)
   thetaD.cov = fitD$varcov$robust
   thetaD.se = sqrt(diag(thetaD.cov))
-
-  # Initial value for the marginal of relapse for stage II of PMLE ----
+  
+  # Initial value for time to the non-terminal event ----
   fitT = fitSPT(dat, time = "time", status = "status_time",
                 formula = T.fmla, Gfun = "PH")
   betaT.naive = as.vector(fitT$beta$est)
   dLambdaT.naive  = as.vector(fitT$dLambda$est)
   thetaT.naive = c(betaT.naive, dLambdaT.naive)
-
-  # Naive estimate
+  
+  # Initial value for copula
   objfun<- function(x){
     f = lln.fun(theta = x, thetaT = thetaT.naive, thetaD = thetaD.est,
                 Xi, Ci, deltaT, deltaD,
@@ -189,7 +189,7 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
   gamma.naive = est.res$argument
   para.naive = data.frame(type = "copula", para = colnames(Wmat), time = NA,
                           est = gamma.naive)
-
+  
   para.naive = rbind(
     para.naive,
     data.frame(type = "betaT", para = colnames(Zmat.T), time = NA,
@@ -200,77 +200,73 @@ PMLE4SCR = function(data, time, death, status_time, status_death,
     data.frame(type = "dLambdaT", para = "dLambdaT", time = tk,
                est = thetaT.naive[n.bT + c(1 : n.tk)])
   )
-
-  # PMLE ----
-  PMLE.ini = c(gamma.naive, thetaT.naive)
+  
+  # MLE ----
+  MLE.ini = c(gamma.naive, thetaT.naive, thetaD.est)
   objfun<- function(x){
-    f = lln.fun(theta = x, thetaT = NULL, thetaD = thetaD.est,
-                Xi, Ci, deltaT, deltaD,
-                Zmat.T, Zmat.D, copula.index, Gfun,
+    f = lln.fun(theta = x, thetaT = NULL, thetaD = NULL, 
+                Xi, Ci, deltaT, deltaD, 
+                Zmat.T, Zmat.D, copula.index, Gfun, 
                 copula.link, Wmat, control)
-    g = dlln.fun(theta = x, thetaT = NULL, thetaD = thetaD.est,
-                 Xi, Ci, deltaT, deltaD,
-                 Zmat.T, Zmat.D, copula.index, Gfun,
+    g = dlln.fun(theta = x, thetaT = NULL, thetaD = NULL, 
+                 Xi, Ci, deltaT, deltaD, 
+                 Zmat.T, Zmat.D, copula.index, Gfun, 
                  copula.link, Wmat, control)
-    B = ddlln.fun(theta = x, thetaT = NULL, thetaD = thetaD.est,
-                  Xi, Ci, deltaT, deltaD,
-                  Zmat.T, Zmat.D, copula.index, Gfun,
-                  copula.link, Wmat, control)
+    B = ddlln.fun(theta = x, thetaT = NULL, thetaD = NULL, 
+                  Xi, Ci, deltaT, deltaD, 
+                  Zmat.T, Zmat.D, copula.index, Gfun, 
+                  copula.link, Wmat, control) 
     list(value = f, gradient = g, hessian = B)
   }
-
-  est.res <- trust(objfun, PMLE.ini, 5, 100, iterlim = 300,
-                   minimize= FALSE, blather = T)
+  
+  est.res <- trust(
+    objfun, MLE.ini, 5, 100, iterlim = 300, 
+    minimize= FALSE, blather = T)
   if (!est.res$converged) stop("Error: PMLE did not converge.")
   theta.est = est.res$argument
-  Imat = - ddlln.fun(theta = theta.est, thetaT = NULL, thetaD = thetaD.est,
-                     Xi, Ci, deltaT, deltaD,
-                     Zmat.T, Zmat.D, copula.index, Gfun,
-                     copula.link, Wmat, control)
-  dll.k = ddll.fun2(theta = theta.est, thetaD = thetaD.est,
-                    Xi, Ci, deltaT, deltaD,
-                    Zmat.T, Zmat.D, copula.index, Gfun,
-                    copula.link, Wmat, control)
-  dll.k[is.na(dll.k)] = 0
-  Psi =  dll.fun(theta = theta.est, thetaT = NULL, thetaD = thetaD.est,
-                 Xi, Ci, deltaT, deltaD,
-                 Zmat.T, Zmat.D, copula.index, Gfun,
-                 copula.link, Wmat, control)
-  Psi[is.na(Psi)] = 0
-  Psi.theta = Psi + Psi.uD %*% dll.k / N
-  Vmat = crossprod(Psi.theta, Psi.theta) / N
+  Imat = - ddlln.fun(theta = theta.est, thetaT = NULL, thetaD = NULL, 
+                     Xi, Ci, deltaT, deltaD, 
+                     Zmat.T, Zmat.D, copula.index, Gfun, 
+                     copula.link, Wmat, control) 
+  Psi =  dll.fun(theta = theta.est, thetaT = NULL, thetaD = NULL, 
+                 Xi, Ci, deltaT, deltaD, 
+                 Zmat.T, Zmat.D, copula.index, Gfun, 
+                 copula.link, Wmat, control) 
+  Vmat = crossprod(Psi, Psi) / N
   theta.cov = solve(Imat) %*% Vmat %*% solve(Imat) / N
+  theta.cov.model = solve(Imat) / N
+  
 
   gamma.summary = data.frame(
     para = colnames(Wmat),
     est = theta.est[1 : n.gamma],
     se = sqrt(diag(theta.cov))[1 : n.gamma])
-
+  
   betaT.summary = data.frame(
     para = colnames(Zmat.T),
     est = theta.est[n.gamma + c(1 : n.bT)],
     se = sqrt(diag(theta.cov))[n.gamma + c(1 : n.bT)])
-
+  
   dLambdaT.summary = data.frame(
     time = tk,
     est = theta.est[n.gamma + n.bT + c(1 : n.tk)],
     se = sqrt(diag(theta.cov))[n.gamma + n.bT + c(1 : n.tk)])
-
+  
   betaD.summary = data.frame(
     para = colnames(Zmat.D),
     est = thetaD.est[c(1 : n.bD)],
     se = sqrt(diag(thetaD.cov))[c(1 : n.bD)])
-
+  
   dLambdaD.summary = data.frame(
     time = dk,
     est = thetaD.est[n.bD + c(1 : n.dk)],
     se = sqrt(diag(thetaD.cov))[n.bD + c(1 : n.dk)])
-
-
+  
+  
   gamma.cov = theta.cov[1 : n.gamma, 1 : n.gamma, drop = F]
   thetaT.cov = theta.cov[n.gamma + c(1 : (n.bT + n.tk)),
                          n.gamma + c(1 : (n.bT + n.tk))]
-
+  
   list(gamma = gamma.summary, gamma.cov = gamma.cov,
        betaT = betaT.summary, dLambdaT = dLambdaT.summary,
        thetaT.cov = thetaT.cov,
