@@ -27,6 +27,6 @@ myfit = PMLE4SCR(data, time = "T2", death = "T1",
                         copula.family = "Clayton",
                         copula.control = list(link = "identity", formula = ~ g),
                         initial = c(2, 0, 0))
-myfit$PMLE$gamma
-myfit$PMLE$betaT
+myfit$gamma
+myfit$betaT
 ```
