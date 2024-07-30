@@ -8,5 +8,5 @@ Description: This R package implements the two-stage pseudo maximum likelihood e
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Depends: trust, dplyr, rlang, VineCopula
+Depends: trust, tidyverse, rlang, VineCopula
 RoxygenNote: 7.2.3
