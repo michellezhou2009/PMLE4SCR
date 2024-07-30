@@ -14,7 +14,7 @@
 #' @param copula.control a list of two components: \code{link} (a character string: "identity", "log", or "log-1", specifying the link function for the regression model of the copula parameter; if \code{link = NULL} (default), the link function will be the default function for the specified copula family: "log" for Clayton, "identity" for Frank, and "log-1" for Gumbel), and \code{formula} (an object of class \code{\link[stats]{formula}}: a symbolic description of the regression model to be fitted for the copula parameter under the specified link function; if \code{formula = ~ 1} (default), the copula parameter is a constant)
 #' @param initial a numerical value or a vector of numerical values for the initial values of the copula parameter or the regression coefficients for the copula parameter.
 #'
-#' @import trust rlang dplyr VineCopula
+#' @import trust rlang tidyverse VineCopula
 #'
 #' @export
 #'
