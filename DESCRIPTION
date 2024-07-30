@@ -1,11 +1,10 @@
 Package: PMLE4SCR
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Two-stage pseudo maximum likelihood estimation (PMLE) for the copula-based analysis of the semi-competing risks data
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Qian M. Zhou
+Maintainer: Qian M. Zhou <qz70@msstate.edu>
+Description: This R package implements the two-stage pseudo maximum likelihood estimation (PMLE) for the copula-based analysis of the semi-competing risks data. The marginal distributions are modeled by semiparametric transformation regression models, and the dependence between the bivariate event times is specified by a parametric copula function with the copula parameter that may depend on some covariates.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
